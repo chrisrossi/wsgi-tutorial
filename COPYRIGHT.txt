@@ -1,0 +1,5 @@
+(c) 2009 Chris Rossi
+
+All rights reserved.
+
+This notice applies to every file in this directory and it's subdirectories.

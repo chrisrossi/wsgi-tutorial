@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>WSGI Tutorial</title>
+        <style>
+          body {
+            background-color: black;
+            color: white;
+            margin: 2em;
+            font: 12pt Lucidatypewriter,monospace;
+          }
+          
+          h1,h2,h3,h4,h5,h6 {
+            font-face: Helvetica, sans-serif;
+          }
+          
+          h1 { font-size: 40pt; }
+          h2 { font-size: 30pt; }
+          h3 { font-size: 25pt; }
+          h4 { font-size: 20pt; }
+          
+          a:link { text-decoration: none; color: lightblue; }
+          a:visited { text-decoration: none; color: lightblue; }
+          a:active { text-decoration: none; color: white; }
+          a:hover { text-decoration: none; color: white; }
+
+          .container {
+            width: 780px;
+            margin: auto;
+          }
+          
+          .slide {
+            padding: 1em;
+            background-color: #101010;
+            border: solid 1px darkgray;
+          }
+          
+          pre {
+            padding: 1em;
+            background-color: #191919;
+            border: solid 1px darkgray;
+          }
+          
+          li {
+            margin: 0.5em 1em 0.5em 1em;
+          }
+          
+          #nav {
+            position: absolute;
+            top: 5px;
+            text-align: center;
+            width: 100%;
+          }
+          
+          #nav span {
+              margin: 0 5em 0 5em;
+          }
+        </style>
+
+        <script type="text/javascript" src="jquery.min.js"></script>
+
+        <script type="text/javascript">
+            var slides = null;
+            var index = -1;
+            var frames = null;
+            var findex = -1;
+          
+            function forward(speed) {
+                if ( frames && findex < frames.length ) {
+                    $(frames.get(findex)).show(speed);
+                    findex++;
+                }
+                else {
+                    forward_slide(speed);
+                  }
+            }
+            
+            function forward_slide(speed) {
+                if ( index >= 0 && index < slides.length ) {
+                    $(slides.get(index)).hide(speed);                    
+                }
+                if ( index < slides.length ) {
+                    index++;
+                }
+                if ( index < slides.length ) {
+                    slide = slides.get(index);
+                    $(slide).show(speed);
+                    frames = $(slide).find(".frame");
+                    findex = 0;
+                }
+                else {
+                    frames = null;
+                }
+            }
+            
+            function backward(speed) {
+                if ( frames && findex > 0 ) {
+                    findex--;
+                    $(frames.get(findex)).hide(speed);
+                }
+                else {
+                    backward_slide(speed);
+                }
+            }
+            
+            function backward_slide(speed) {
+                if ( index < slides.length && index >= 0 ) {
+                    $(slides.get(index)).hide(speed);
+                }
+                if ( index > 0 ) {
+                    index--;
+                    slide = slides.get(index);
+                    $(slide).show(speed);
+                    frames = $(slide).find(".frame");
+                    findex = frames.length;
+                }
+                else {
+                    frames = null;
+                }
+            }
+            
+            function handle_key(e) {
+                if (e.which == 108) { // L key
+                    forward(0);                    
+                }
+                if (e.which == 104) { // H key
+                    backward(0);                    
+                }
+                if (e.which == 32) { // space bar
+                    forward(500);
+                }
+            }
+            
+            var nav_timer = null;
+
+            function show_nav() {
+                $("#nav").fadeIn(100);
+            }
+            
+            function hide_nav() {
+                $("#nav").fadeOut(1000);
+                nav_timer = null;                
+            }
+
+            function handle_mouse_move(e) {
+                if ( nav_timer == null ) {
+                    show_nav();
+                }
+                else {
+                    clearTimeout(nav_timer);
+                }
+                nav_timer = setTimeout("hide_nav()", 5000);
+            }
+            
+            function wire_nav() {
+                $("#nav #prev a").click(function(e){
+                    //e.preventDefault();
+                    e.stopPropagation();
+                    backward(0);
+                });
+                $("#nav #next a").click(function(e){
+                    //e.preventDefault();
+                    e.stopPropagation();
+                    forward(0);
+                });
+                hide_nav();
+            }
+            
+            $(document).ready(function(){
+                $(".slide").css("display", "none");
+                $(".frame").css("display", "none");
+                slides = $(".slide");
+                $(document).click(function(){
+                    forward(500);
+                });
+                $(document).keypress(handle_key)
+                           .mousemove(handle_mouse_move);
+                wire_nav();
+            });
+            
+        </script>
+    </head>
+  <body>
+    <div id="nav">
+      <span id="prev"><a href="#">prev</a> (h)</span>
+      <span id="next"><a href="#">next</a> (l)</span>
+    </div>
+    <div class="container">
+
+      <div class="slide">
+        <h1>WSGI</h1>
+        <h2>Web Server Gateway Interface</h2>
+        
+        <p>
+          This presentation, with sample source code, may be downloaded
+          here:
+        </p>
+        <p>
+          <a href="http://archimedeanco.com/wsgi-tutorial.tar.gz">
+            http://archimedeanco.com/wsgi-tutorial.tar.gz
+          </a>
+        </p>
+        <p>
+          &copy; 2009 Chris Rossi
+        </p>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>The specification</h4>
+        
+        <p class="frame">
+          PEP 333
+          <a href="http://www.python.org/dev/peps/pep-0333/">http://www.python.org/dev/peps/pep-0333/</a>
+        </p>
+        <p class="frame">
+          A WSGI application is a callable with the following signature:
+        </p>
+        
+        <pre class="frame">
+def application(environ, start_response)</pre>
+
+        <p class="frame">
+          <i>environ</i> is a dictionary which contains everything in 
+          <i>os.environ</i> plus variables which contain data about the 
+          HTTP reqeust.
+        </p>
+        
+        <p class="frame">
+          <i>start_response</i> is a callable which the application calls to 
+          set the status code and headers for a response, before returning
+          the body of the response.
+        </p>
+        
+        <p class="frame">
+          The return value for the WSGI application is an iterable object.
+          Each item in the iterable is a chunk of the HTTP response body as a
+          byte string.
+        </p>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>environ</h4>
+        
+        <p class="frame">
+          The environ dict has pretty much everything you would expect if you
+          were using CGI.  
+        </p>
+        
+        <p class="frame">
+          In fact, the canonical method for parsing form parameters involves
+          using the <i>cgi</i> module in the standard library.
+        </p>
+        
+        <p class="frame">
+          All HTTP headers sent with the request are available as variables
+          named <i>HTTP_{header_name}</i>.  
+        </p>
+        
+        <p class="frame">
+          Some variables specific to WSGI are present as well and are named
+          <i>wsgi.*</i>.
+        </p>
+        
+        <p class="frame">
+          The short, exhaustive list of variables is available in the 
+          excellent specification document.
+        </p>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Processing request parameters</h4>
+        
+        <p class="frame">
+          The variable, <i>wsgi.input</i>, is a file-like object which can 
+          be read to retrieve the body of an HTTP POST request.
+        </p>
+        
+        <p class="frame">
+          The following code creates an instance of <i>cgi.FieldStorage</i>
+          from which we can get request parameters.
+        </p>
+        
+        <pre class="frame">
+import cgi
+form = cgi.FieldStorage(fp=environ['wsgi.input'], 
+                        environ=environ)</pre>
+                        
+        <p class="frame">
+          Because we pass in the <i>environ</i>, the above code will also
+          parse any query string for our request, integrating GET and POST
+          parameters into a single data structure.
+        </p>
+ 
+        <p class="frame">
+          The other way to process request parameters, that is rapidly becoming
+          canonical, is to use <i>webob.Request</i>.
+        </p>
+        
+        <p class="frame">
+          We will have more on webob, later.
+        </p>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>start_response</h4>
+
+        <p class="frame">
+          <i>start_response</i> is a callable which has the following 
+          signature:
+        </p>
+        
+        <pre class="frame">
+start_response(status, response_headers, exc_info=None)</pre>
+
+        <p class="frame">
+          <i>start_response</i> is widely regarded as being quite weird and
+          will likely not be present in version 2.0 of the WSGI spec, if and
+          when there ever is one.
+        </p>
+        
+        <p class="frame">
+          <i>status</i> is a string which contains the numeric HTTP status
+          code of the response followed by the standard HTTP message for that
+          status code.  This is straight up HTTP.
+        </p>
+        
+        <p class="frame">
+          A few common stati look like this:
+        </p>
+        
+        <pre class="frame">
+"200 OK"
+"404 NOT FOUND"
+"500 SERVER ERROR"</pre>
+
+      </div>    
+    
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>start_response: response_headers</h4>
+
+        <p class="frame">
+          <i>response_headers</i> is a list of tuples where each tuple is the
+          name of an HTTP response header and then it's value.
+        </p>
+        
+        <p class="frame">
+          For example:
+        </p>
+        
+        <pre class="frame">
+response_headers = [
+    ("Content-type", "text/html"),
+    ("Content-length", str(len(body)) ),
+    ]
+    
+start_response("200 OK", response_headers)
+return [body,]</pre>
+
+        <p class="frame">
+          The response headers may be modified by the server or any middleware
+          that is downstream of your response.
+        </p>
+        
+        <p class="frame">
+          At a bare minimum you should set the <i>Content-type</i> 
+          header, although the server will probably substitue <i>text/plain</i>
+          if you fail to set this.
+        </p>
+        
+        <p class="frame">
+          It is also good practice to set the <i>Content-length</i> header as
+          this allows a client to make another request on the same socket
+          connection and provide the user with download progress information.
+        </p>
+        
+        <!--p class="frame">
+          Depending on what you return, the server <i>might</i> try to 
+          calculate and set the <i>Content-length</i> header for you.  No 
+          server is required to do this, per the spec, so it is not 
+          recommended to rely on this behavior.
+        </p-->
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>start_response: exc_info</h4>
+       
+        <p class="frame">
+          The <i>exc_info</i> argument is optional and may be used to 
+          communicate traceback data to downstream components.
+        </p>
+        
+        <p class="frame">
+          If used, <i>exc_info</i> must be a tuple of the form returned by
+          <i>sys.exc_info()</i>.
+        </p>
+        
+        <p class="frame">
+          If your application catches an exception and generates an HTTP error 
+          response, it is a good idea call <i>sys.exc_info</i> and pass the
+          result here.
+        </p>
+        
+        <p class="frame">
+          The server or other downstream components can potentially use this
+          to provide error logging or pretty HTML stack traces.
+        </p>
+        
+        <p class="frame">
+          I'm not sure how widely this is used in the wild.  Set it anyway.
+        </p>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 1: Hello World!</h4>
+      
+        <p class="frame">
+          The follow is about as simle a working WSGI app as you can write.        
+        </p>
+        
+        <pre class="frame">
+def application(environ, start_response):
+    start_response("200 OK", [("Content-type", "text/plain")])
+    return ["Hello World!",]</pre>
+    
+        <p class="frame">
+          That's cool, but how do we run it?
+        </p>
+        
+        <p class="frame">
+          There are several server components out there that are able to run
+          WSGI apps, but for simple testing purposes we can just use the
+          reference implementation included in Python's standard library.
+        </p>
+        
+        <pre class="frame">
+if __name__ == '__main__':
+    from wsgiref.simple_server import make_server
+    server = make_server('localhost', 8080, application)
+    server.serve_forever()</pre>
+
+        <p class="frame">
+          Voila.
+        </p>
+      </div>
+
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 2: Using a generator for the response body</h4>
+        
+        <p class="frame">
+          When serving up an HTML or similar page, it is probably the most 
+          common case to render a template to a string and then return a one
+          item list which contains that string.
+        </p>
+        
+        <pre class="frame">
+body = template.render(context=context, view=view)
+return [body,]</pre>
+
+        <p class="frame">
+          What if you are delivering a large payload and don't want to store
+          the whole thing in memory at once?  Use an iterable!
+        </p>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 2: Using a generator for the response body</h4>
+
+        <p class="frame">  
+          An easy way to make an iterator in Python is to use a 
+          generator.  Let's say we have an application that servies static
+          files.  We could write a generator like this that serves
+          files one chunk at a time, so we only have to store 
+          <i>BLOCK_SIZE</i> bytes of the file in memory at any given moment.
+        </p>
+        
+        <pre class="frame">
+def send_file(file_path, size):
+    with open(file_path) as f:
+        block = f.read(BLOCK_SIZE)
+        while block:
+            yield block
+            block = f.read(BLOCK_SIZE)</pre>
+  
+        <p class="frame">
+          The part of our WSGI application that uses the generator might look
+          like this:
+        </p>
+        
+        <pre class="frame">
+size = os.path.getsize(file_path)
+headers = [
+    ("Content-type", mimetype),
+    ("Content-length", str(size)),
+]
+start_response("200 OK", headers)
+return send_file(file_path, size)</pre>
+ 
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>WSGI Filters (aka Middleware)</h4>
+        
+        <p class="frame">
+          Because the WSGI spec is so compact and just specifies a signature
+          for a callable, it is easy to conceive of and implement WSGI 
+          applications which call other WSGI implementations, either modifying
+          the request on the way in, the response on the way out, or both.
+        </p>
+        
+        <p class="frame">
+          Such applications are often called middleware applications or 
+          filters.  Filters can be chained together and the resulting chain
+          is generally referred to as a pipeline.  
+        </p>
+        
+        <p class="frame">
+          The generalized form of a filter might look something like this:
+        </p>
+        
+        <pre class="frame">
+class Filter(object):
+    def __init__(self, application):
+        self.application = application
+        
+    def __call__(self, environ, start_response):
+        # Do something here to modify request
+        pass
+        
+        # Call the wrapped application
+        app_iter = self.application(environ, 
+                                    self._sr_callback(start_response))
+        
+        # Do something to modify the response body
+        pass
+        
+        # Return modified response
+        return app_iter
+        
+    def _sr_callback(self, start_response):
+        def callback(status, headers, exc_info=None):
+            # Do something to modify the response status or headers
+            pass
+        
+            # Call upstream start_response
+            start_response(status, headers, exc_info)
+        return callback</pre>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 3: Serve static files from middleware</h4>
+      
+        <p class="frame">
+          We can convert our standalone file_server application into a 
+          middleware application that calls a dynamic application if a static
+          file cannot be found for the request.
+        </p>
+        
+        <p class="frame">
+          Our constructor changes from this:
+        </p>
+        
+        <pre class="frame">
+def __init__(self, path):
+    """ path is directory where static files are stored
+    """
+    self.path = path</pre>
+      
+        <p class="frame">To this:</p>
+        
+        <pre class="frame">
+def __init__(self, application, path):
+    """ path is directory where static files are stored
+    """
+    self.path = path
+    self.application = application</pre>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 3: Serve static files from middleware</h4>
+        
+        <p class="frame">
+          Instead of returning a 404 if we don't find a file, we delegate to
+          the wrapped application.  So this:
+        </p>
+        
+        <pre class="frame">
+# If file does not exist, return 404
+if not os.path.exists(file_path):
+    return self._not_found(start_response)</pre>
+    
+        <p class="frame">Becomes this:</p>
+        
+        <pre class="frame">
+# If file does not exist, delegate to wrapped application
+if not os.path.isfile(file_path):
+    return self.application(environ, start_response)</pre>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Webob</h4>
+        
+        <p class="frame">
+          WSGI was intentionally designed to be minimal for ease of 
+          implementation for web servers and for ease of adoption by 
+          application programmers.
+        </p>
+        
+        <p class="frame">
+          No one likes to manipulate <i>environ</i> directly, nor does anyone
+          really like using <i>start_response</i> very much.  The API
+          provided by WSGI, while easy to implement, is not particularly 
+          satisfying to use semantically.
+        </p>
+        
+        <p class="frame">
+          Nearly every application or framework I've seen based on WSGI has 
+          invented some sort of <i>request</i> and <i>response</i> objects to 
+          wrap manipulation of <i>environ</i> and <i>start_response</i> in 
+          a more semantic, less error prone shell.
+        </p>
+        
+        <p class="frame">
+          Webob has emerged as the canonical implementation for <i>request</i>
+          and <i>response</i> objects.  Webob makes WSGI easier and more
+          satisfying to use.
+        </p>
+        <p class="frame">
+          Webob has thorough documentation on the web here:
+        </p>
+        <p class="frame">
+          <a href="http://pythonpaste.org/webob/">http://pythonpaste.org/webob/</a>
+        </p>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Webob: Request and Response objects</h4>
+
+        <p class="frame">
+          The <i>webob.Request</i> class wraps <i>environ</i> and lets us do
+          all sorts of useful things.
+        </p>
+        
+        <pre class="frame">
+from webob import Request
+request = Request(environ)
+path_info = request.path_info
+form_param = request.params["form_param"]</pre>
+
+        <p class="frame">
+          The <i>webob.Response</i> class represents an HTTP response in a 
+          semantic way.
+        </p>
+        
+        <p class="frame">
+          <i>webob.Response</i> objects are WSGI callables.  The response
+          object handles calling <i>start_response</i> for us.
+        </p>
+        
+        <pre class="frame">
+from webob import Response
+response = Response("Hello World!", "200 OK", [
+    ("Content-type", "text/plain"),
+    ])
+return response(environ, start_response)</pre>
+      </div>
+
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 4: Convert to Webob</h4>
+
+        <p class="frame">
+          We can convert our previous example to use Webob request and response
+          objects.  First, in our <i>FileServer</i> filter we can encapsulate
+          the conversion from the WSGI api to Webob in one place and then
+          use just Webob throughout the rest of the application:
+        </p>
+        
+        <pre class="frame">
+def __call__(self, environ, start_response):
+    """ WSGI entry point
+    """
+    request = Request(environ)
+    response = self._service(request)
+    return response(environ, start_response)
+    
+def _service(self, request):
+    assert isinstance(request, Request)
+    
+    path_info = request.path_info
+    if not path_info:
+        return request.get_response(self.application)</pre>
+      </div>
+
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 4: Convert to Webob</h4>
+
+        <p class="frame">
+          Decorators are another nice way to encapsulate your WSGI entry
+          points to use Webob.  This is what I've used in the <i>printenv</i>
+          application:
+        </p>
+        
+        <pre class="frame">
+def wsgi_app(a):
+    def wrapper(environ, start_response):
+        request = Request(environ)
+        response = a(request)
+        return response(environ, start_response)
+    return wrapper
+
+@wsgi_app
+def app(request):
+    body = html % (dict_to_string(request.params), 
+                   dict_to_string(request.environ))
+    
+    return Response(body=body, 
+                    headerlist=[
+                        ("Content-type", "text/html"),
+                        ("Content-length", str(len(body))),
+                    ])</pre>
+
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>PasteDeploy</h4>
+        
+        <p class="frame">
+          PasteDeploy provides some nice glue for composing your WSGI 
+          components into a functioning web application.
+        </p>
+        <ul class="frame">
+          <li>
+            A multi-threaded HTTP server that can be
+            used in production.  (Usually behind Apache or Nginx via mod_proxy
+            and mod_rewrite.)  
+          </li>
+          <li class="frame">
+            A convenient way to invoke your WSGI components, passing in 
+            configuration parameters.  (Deployment configuration.)
+          </li>
+          <li class="frame">
+            A convenient, declarative configuration for composing pipelines and 
+            composite applications from individual WSGI components.
+            (Application configuration.)
+          </li>
+        </ul>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>PasteDeploy: Factories</h4>
+        
+        <p class="frame">
+          WSGI contains only a specification for calling WSGI applications.  It
+          does not contain a specification for constructing applications.
+        </p>
+        
+        <p class="frame">
+          In order to be able to configure WSGI applications declaratively, 
+          PasteDeploy needs a specification for constructing applications.  
+          To this end, PasteDeploy has defined signatures for factory methods.
+          Implementing a factory interface means your application can be
+          constructed by PasteDeploy.
+        </p>
+        
+        <p class="frame">
+          The signature for an application factory in PasteDeploy is as 
+          follows:
+        </p>
+        
+        <pre class="frame">
+def app_factory(global_config, **local_conf)</pre>
+
+        <p class="frame">
+          The signature for a filter application factory in PasteDeply is:
+        </p>
+        
+        <pre class="frame">
+def filter_app_factory(app, global_conf, **local_conf)</pre>
+
+        <p class="frame">
+          In both of these signatures, <i>global_conf</i> is a dictionary
+          containing configuration parameters declared globally in the
+          PasteDeploy configuration for your site.  <i>local_conf</i>
+          are keyword arguments containing configuration parameters that
+          match those configured for your component in PasteDeploy.
+        </p>
+        
+      </div>
+        
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 5: Deploy our sample app with PasteDeploy</h4>
+        
+        <p class="frame">
+          A factory is any callable that creates and returns an object.  
+          Specifically, in this case, we are concerned with factories that
+          create and return WSGI applications.
+        </p>
+        <p class="frame">
+          All classes are factories.  They can be called and they return
+          objects.  
+        </p>
+        <p class="frame">
+          In the case of our FileServer, class, then to make it work with
+          PasteDeploy we only need to change the signature of the 
+          <i>__init__</i> method from this:
+        </p>
+        <pre class="frame">
+def __init__(self, application, path):</pre>
+        <p class="frame">To this:</p>
+        <pre class="frame">
+def __init__(self, application, global_conf, path):</pre>
+        <p class="frame">
+          <i>path</i> is configured in the PasteDeploy configuration file 
+          and is passed in by PasteDeploy here as a keyword argument.  
+        </p>
+        <p class="frame">
+          Some care must be taken to make sure configuration parameters 
+          declared in the PasteDeploy config match up with keyword arguments
+          in the factory callables.
+        </p>
+      </div>
+
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 5: Deploy our sample app with PasteDeploy</h4>
+
+        <p class="frame">
+          For the <i>printenv</i> application, we show another way to create
+          an application factory.
+        </p>
+        <p class="frame">
+          Here we use a closure to make our configuration parameters 
+          available to our WSGI callable:
+        </p>
+        <pre class="frame">
+def factory(global_config, favorite_color):
+    @wsgi_app
+    def app(request):
+        body = html % (favorite_color,
+                       dict_to_string(request.params), 
+                       dict_to_string(request.environ))
+        
+        return Response(body=body, 
+                        headerlist=[
+                            ("Content-type", "text/html"),
+                            ("Content-length", str(len(body))),
+                        ])
+    return app</pre>
+      </div>
+      
+      <div class="slide">
+        <h2>WSGI: Web Server Gateway Interface</h2>
+        <h4>Example 5: Deploy our sample app with PasteDeploy</h4>
+        
+        <p class="frame">
+          In the previous example we had wired our filter to our application
+          using Python code.  This is what's known, generally, as imperative
+          configuration.
+        </p>
+        
+        <p class="frame">
+          With PasteDeploy we will use declarative config to wire our filter
+          up to our application.  We can get rid of <i>application.py</i>
+          and we add <i>helloworld.ini</i>, which is read by PasteDeploy.
+        </p>
+        
+        <p class="frame">
+          Our <i>helloworld.ini</i> looks like this:
+        </p>
+        
+        <pre class="frame">
+[DEFAULT]
+
+[app:main]
+use = egg:helloworld#printenv
+filter-with = file_server
+favorite_color = fuchshia
+
+[filter:file_server]
+use = egg:helloworld#file_server
+path = /home/chris/proj/wsgi-tutorial/static-files
+
+[server:main]
+use = egg:Paste#http
+host = 0.0.0.0
+port = 8080</pre>
+
+      </div>
+    </div><!-- container -->
+  </body>
+</html>
